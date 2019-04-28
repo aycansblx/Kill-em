@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script src="phaser.min.js"></script>
+	<style type="text/css">
+		body {
+			margin: 0;
+			padding: 0;
+		}
+	</style>
+</head>
+<body>
+
+    <script>
+    	var config = {
+    		type: Phaser.AUTO,
+    		width: 800,
+    		height: 600,
+    		scene: {
+        		preload: preload,
+        		create: create
+    		}
+		};
+		var game = new Phaser.Game(config);
+
+		const HB_WIDTH = 300;
+
+		var instances = {};
+		var data = {};
+
+		function preload () {
+    		this.load.image('bg', './images/background.jpg');
+    		
+    		this.load.image('tt', './images/title.png');
+    		this.load.image('st', './images/subtitle.png');
+
+    		this.load.image('dp', './images/pages/deck_page.png');
+    		this.load.image('rp', './images/pages/rule_page.png');
+    		this.load.image('vp', './images/pages/victory.png');
+    		this.load.image('lp', './images/pages/defeat.png');
+
+    		this.load.image('ho', './images/hud/hp_border.png');
+    		this.load.image('hi', './images/hud/hp_back.png');
+    		this.load.image('it', './images/hud/starting.png');
+    		this.load.image('ss', './images/hud/status.png');
+    		this.load.image('ck', './images/hud/chicken.png');
+    		this.load.image('dd', './images/hud/dead.png');
+
+    		this.load.image('cb', './images/cards/card_back.png');
+    		this.load.image('c1', './images/cards/card_1.png');
+    		this.load.image('c2', './images/cards/card_2.png');
+    		this.load.image('c3', './images/cards/card_3.png');
+    		this.load.image('c4', './images/cards/card_4.png');
+    		this.load.image('c5', './images/cards/card_5.png');
+    		this.load.image('c6', './images/cards/card_6.png');
+
+    		this.load.image('d_io', './images/ui/in_or_out.png');
+    		this.load.image('d_ib', './images/ui/in_button.png');
+    		this.load.image('d_ob', './images/ui/out_button.png');
+    		this.load.image('d_st', './images/ui/strategy.png');
+    		this.load.image('d_yb', './images/ui/yes_button.png');
+    		this.load.image('d_nb', './images/ui/no_button.png');
+
+    		this.load.image('w_rv', './images/utils/revolver.png');
+    		this.load.image('w_mp', './images/utils/mp5.png');
+    		this.load.image('w_fl', './images/utils/flail.png');
+    		this.load.image('h_hr', './images/utils/heart.png');
+
+    		this.load.spritesheet('mb', './images/ui/menu_buttons.png', { frameWidth: 76, frameHeight: 51 });
+
+    		this.load.spritesheet('pl', './images/hud/player_list.png', { frameWidth: 138, frameHeight: 50 });
+
+            this.load.audio('revolver', [ './audio/revolver.mp3' ]);
+            this.load.audio('chicken', [ './audio/chicken.mp3' ]);
+            this.load.audio('healthUp', [ './audio/healthUp.mp3' ]);
+            this.load.audio('mp5', [ './audio/mp5.mp3' ]);
+            this.load.audio('actn', [ './audio/actn.mp3' ]);
+            this.load.audio('ooh', [ './audio/ooh.mp3' ]);
+            this.load.audio('deal', [ './audio/page.mp3' ]);
+            this.load.audio('flail', [ './audio/flail.mp3' ]);
+            this.load.audio('theme', [ './audio/theme.mp3' ]);
+		}
+
+		var damnIt;
+
+		function create () {
+			damnIt = this;
+
+			this.add.image(0, 0, 'bg').setOrigin(0, 0);
+
+			this.sound.setVolume(0.2);
+
+			instances.theme = this.sound.add('theme', {volume: 3, loop: true});
+			instances.theme.play();
+
+			createMainMenu(this);
+			data.currentPage = -1;
+
+			// TODO: color palette updates
+			this.input.on('gameobjectover', function (pointer, gameObject) {
+				if (data.currentPage == -1)
+					return;
+				
+				if (gameObject.name == 'playButton' || gameObject.name == 'rulesButton' || gameObject.name == 'deckButton')
+					gameObject.setTint(0xFFE465);
+				else if (gameObject.name == 'in1' || gameObject.name == 'out1')
+					gameObject.setTint(0xFFE465);
+				else if (gameObject.name == 'in2' || gameObject.name == 'out2')
+					gameObject.setTint(0xFFE465);
+				else if (gameObject.name == 'yes' || gameObject.name == 'no')
+					gameObject.setTint(0xFFE465);
+
+				if (gameObject.name == 'ownCard0') {
+					instances.HN[4].setDepth(0);
+					instances.HN[0].setDepth(5).setScale(0.5).y -= 50;
+				} else if (gameObject.name == 'ownCard1') {
+					instances.HN[0].setDepth(0);
+					instances.HN[4].setDepth(5).setScale(0.5).y -= 50;
+				}
+				
+				if (gameObject.name == 'cc1')
+					instances.CC[0].setDepth(5).setScale(0.5);
+				else if (gameObject.name == 'cc2')
+					instances.CC[1].setDepth(5).setScale(0.5);
+				else if (gameObject.name == 'cc3')
+					instances.CC[2].setDepth(5).setScale(0.5);
+    		}, this);
+
+
+    		this.input.on('gameobjectout', function (pointer, gameObject) {
+    			if (data.currentPage == -1)
+    				return;
+
+    			if (gameObject.name == 'playButton' || gameObject.name == 'rulesButton' || gameObject.name == 'deckButton')
+					gameObject.setTint(0xFFFFFF);
+				else if (gameObject.name == 'in1' || gameObject.name == 'out1')
+					gameObject.setTint(0xFFFFFF);
+				else if (gameObject.name == 'in2' || gameObject.name == 'out2')
+					gameObject.setTint(0xFFFFFF);
+				else if (gameObject.name == 'yes' || gameObject.name == 'no')
+					gameObject.setTint(0xFFFFFF);
+					
+
+				if (gameObject.name == 'ownCard0')
+					instances.HN[0].setScale(0.25).y += 50;
+				else if (gameObject.name == 'ownCard1')
+					instances.HN[4].setScale(0.25).y += 50;
+				
+				if (gameObject.name == 'cc1')
+					instances.CC[0].setScale(0.25).setDepth(0);
+				else if (gameObject.name == 'cc2')
+					instances.CC[1].setScale(0.25).setDepth(0);
+				else if (gameObject.name == 'cc3')
+					instances.CC[2].setScale(0.25).setDepth(0);
+    		}, this);
+
+			this.input.on('gameobjectdown', function (pointer, gameObject) {
+				if (gameObject.name == 'resetGame') {
+					this.scene.restart();
+				}
+
+				if (data.currentPage == -1)
+					return;
+
+				let flag = true;
+
+				if (gameObject.name == "playButton")
+					slideMainMenu(this, createGamePage);
+				else if (gameObject.name == 'deckButton')
+					slideMainMenu(this, createDeckPage);
+				else if (gameObject.name == 'rulesButton')
+					slideMainMenu(this, createRulesPage);
+				else if (gameObject.name == 'deckPage')
+					slideDeckPage(this, createMainMenu);
+				else if (gameObject.name == 'rulesPage')
+					slideRulesPage(this, createMainMenu);
+				
+				else if (gameObject.name == 'in1') {
+					for (let i=0; i<instances.DLG.length; i++)
+						if (instances.DLG[i])
+							instances.DLG[i].destroy();
+					data.bet[0] += 5;
+					if (data.bet[0] > data.health[0])
+						data.bet[0] = data.health[0];
+					this.time.delayedCall(300, updateHealthBar, [
+						instances.HI[0], 
+						data.health[0] - data.bet[0], 
+						data.bet[0],
+						this,
+						aiDecision,
+						[1, this, commonCardsPart1],
+						400
+					], this);
+				} 
+
+				else if (gameObject.name == 'out1') {
+					for (let i=0; i<instances.DLG.length; i++)
+						if (instances.DLG[i])
+							instances.DLG[i].destroy();
+					data.bet[0] = -data.bet[0];
+					this.time.delayedCall(300, imout, [0, this, commonCardsPart1], this);
+				} 
+
+				else if (gameObject.name == 'in2') {
+					for (let i=0; i<instances.DLG.length; i++)
+						if (instances.DLG[i])
+							instances.DLG[i].destroy();
+					data.bet[0] += 5;
+					if (data.bet[0] > data.health[0])
+						data.bet[0] = data.health[0];
+					this.time.delayedCall(300, updateHealthBar, [
+						instances.HI[0], 
+						data.health[0] - data.bet[0], 
+						data.bet[0],
+						this,
+						aiDecision,
+						[1, this, commonCardsPart2],
+						400
+					], this);
+				} 
+
+				else if (gameObject.name == 'out2') {
+					for (let i=0; i<instances.DLG.length; i++)
+						if (instances.DLG[i])
+							instances.DLG[i].destroy();
+					data.bet[0] = -data.bet[0];
+					this.time.delayedCall(300, imout, [0, this, commonCardsPart2], this);
+				} 
+
+				else if (gameObject.name == 'yes') {
+					for (let i=0; i<instances.DLG.length; i++)
+						if (instances.DLG[i])
+							instances.DLG[i].destroy();
+					data.bet[0] += 5;
+					this.time.delayedCall( 300, updateHealthBar, [instances.HI[0], data.health[0] - data.bet[0], data.bet[0]], this);
+					data.currentPage = 10;
+					instances.DLG = [null];
+					instances.DLG[0] = this.add.image(400, 380, 'ss').setOrigin(0.5, 0.5);
+				} 
+
+				else if (gameObject.name == 'no') {
+					for (let i=0; i<instances.DLG.length; i++)
+						if (instances.DLG[i])
+							instances.DLG[i].destroy();
+					this.time.delayedCall(700, aiDecision, [1, this, reveal], this);
+				} 
+
+				else if (data.currentPage == 10 && gameObject.name == 'ownCard0') {
+					data.currentPage = 7;
+					changeCard(this, 0, 0);
+					flag = false;
+				} 
+
+				else if (data.currentPage == 10 && gameObject.name == 'ownCard1') {
+					data.currentPage = 7;
+					changeCard(this, 4, 0);
+					flag = false;
+				}
+
+				if (flag)
+					this.sound.play('actn');
+
+    		}, this);
+		}
+
+		function createMainMenu(game) {
+			instances.TT = game.add.image(-400, 175, 'tt').setOrigin(0.5, 0.5);
+			instances.ST = game.add.image(-400, 250, 'st').setOrigin(0.5, 0.5);
+
+			instances.PB = game.add.image(-400, 350, 'mb', 0).setOrigin(0.5, 0.5).setName('playButton').setInteractive();
+			instances.RB = game.add.image(-400, 400, 'mb', 1).setOrigin(0.5, 0.5).setName('rulesButton').setInteractive();
+			instances.DB = game.add.image(-400, 450, 'mb', 2).setOrigin(0.5, 0.5).setName('deckButton').setInteractive();
+
+			game.tweens.add({
+				targets: [instances.TT, instances.ST, instances.PB, instances.RB, instances.DB],
+            	x: 400,
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+            	onComplete: function () { data.currentPage = 0 },
+        	});
+		}
+
+		function createDeckPage(game) {
+			instances.DP = game.add.image(-400, 300, 'dp').setOrigin(0.5, 0.5).setName('deckPage').setInteractive();
+
+			game.tweens.add({
+				targets: instances.DP,
+            	x: 400,
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+            	onComplete: function () { data.currentPage = 2 },
+        	});
+		}
+
+		function createRulesPage(game) {
+			instances.RP = game.add.image(-400, 300, 'rp').setOrigin(0.5, 0.5).setName('rulesPage').setInteractive();
+
+			game.tweens.add({
+				targets: instances.RP,
+            	x: 400,
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+            	onComplete: function () { data.currentPage = 3 },
+        	});
+		}
+
+		function createGamePage(game) {
+			instances.theme.setVolume(1.5);
+
+			data.alive = [true, true, true, true];
+			data.health = [100, 100, 100, 100];
+			data.bet = [0, 0, 0, 0];
+			data.over = false;
+
+			instances.DD = [];
+			instances.OT = [];
+			instances.CC = [];
+			instances.NM = [null, null, null, null];
+
+			instances.NM[0] = game.add.image( 400,  750, 'pl', 3).setOrigin(0.5, 0.5);
+			instances.NM[1] = game.add.image(-150,  300, 'pl', 1).setOrigin(0.5, 0.5).setRotation(Math.PI * 0.5);
+			instances.NM[2] = game.add.image( 400, -150, 'pl', 2).setOrigin(0.5, 0.5).setRotation(Math.PI);
+			instances.NM[3] = game.add.image( 950,  300, 'pl', 0).setOrigin(0.5, 0.5).setRotation(Math.PI * 1.5);
+
+			instances.HI = [{}, {}, {}, {}];
+
+			instances.HI[0].HBB = game.add.image(250, 785, 'hi').setOrigin(0, 0.5).setTint(0xFF0000);
+			instances.HI[0].HBH = game.add.image(250, 785, 'hi').setOrigin(0, 0.5).setTint(0xFFFF00);
+			instances.HI[0].BRD = game.add.image(250, 785, 'ho').setOrigin(0, 0.5);
+
+			instances.HI[1].HBB = game.add.image(-185, 150, 'hi').setOrigin(0, 0.5).setTint(0xFF0000).setRotation(Math.PI * 0.5);
+			instances.HI[1].HBH = game.add.image(-185, 150, 'hi').setOrigin(0, 0.5).setTint(0xFFFF00).setRotation(Math.PI * 0.5);
+			instances.HI[1].BRD = game.add.image(-185, 150, 'ho').setOrigin(0, 0.5).setRotation(Math.PI * 0.5);
+
+			instances.HI[2].HBB = game.add.image(550, -185, 'hi').setOrigin(0, 0.5).setTint(0xFF0000).setRotation(Math.PI);
+			instances.HI[2].HBH = game.add.image(550, -185, 'hi').setOrigin(0, 0.5).setTint(0xFFFF00).setRotation(Math.PI);
+			instances.HI[2].BRD = game.add.image(550, -185, 'ho').setOrigin(0, 0.5).setRotation(Math.PI);
+
+			instances.HI[3].HBB = game.add.image(985, 450, 'hi').setOrigin(0, 0.5).setTint(0xFF0000).setRotation(Math.PI * 1.5);
+			instances.HI[3].HBH = game.add.image(985, 450, 'hi').setOrigin(0, 0.5).setTint(0xFFFF00).setRotation(Math.PI * 1.5);
+			instances.HI[3].BRD = game.add.image(985, 450, 'ho').setOrigin(0, 0.5).setRotation(Math.PI * 1.5);
+
+			game.tweens.add({
+				targets: [instances.NM[0], instances.HI[0].HBB, instances.HI[0].HBH, instances.HI[0].BRD],
+            	y: '-=300',
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+            	onComplete: function () { data.currentPage = 1; startTurn(game); },
+        	});
+
+        	game.tweens.add({
+				targets: [instances.NM[1], instances.HI[1].HBB, instances.HI[1].HBH, instances.HI[1].BRD],
+            	x: '+=300',
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+        	});
+
+        	game.tweens.add({
+				targets: [instances.NM[2], instances.HI[2].HBB, instances.HI[2].HBH, instances.HI[2].BRD],
+            	y: '+=300',
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+        	});
+
+        	game.tweens.add({
+				targets: [instances.NM[3], instances.HI[3].HBB, instances.HI[3].HBH, instances.HI[3].BRD],
+            	x: '-=300',
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+        	});
+		}
+
+		function startTurn(game) {
+			data.currentPage = 1;
+			data.bet = [];
+			for (let i=0; i<4; i++)
+				if (data.alive[i])
+					data.bet.push(5);
+				else
+					data.bet.push(0);
+
+			let ganyot = game.add.image(400, 300, 'it').setOrigin(0.5, 0.5);
+			let total = 0;
+			for (let i=0; i<4; i++) {
+				if (data.alive[i]) {
+					total += 700;
+					game.time.delayedCall(total, updateHealthBar, [instances.HI[i], data.health[i] - data.bet[i], data.bet[i]], this);
+				}
+			}
+			game.time.delayedCall(total + 300, ()=>ganyot.destroy(), [], this);
+
+			instances.CB = game.add.image(400, 300, 'cb').setOrigin(0.5, 0.5).setScale(0);
+			game.tweens.add({
+        		targets: instances.CB,
+        		scaleX: 0.33,
+        		scaleY: 0.33,
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+            	delay: 3500,
+            	onComplete: () => dealCards(game),
+        	});
+		}
+
+		function dealCards(game) {
+			data.cards = [];
+			for (let i=0; i<6; i++)
+				for (let j=0; j<5; j++)
+					data.cards.push(i);
+
+			instances.HN = [];
+
+			let size = 0;
+			for (let i=0; i<4; i++)
+				if (data.alive[i])
+					size += 2;
+
+			let counter= 0;
+			for (let i=0; i<8; i++) {
+				let plyr = i % 4;
+				if (!data.alive[plyr]) {
+					instances.HN.push(null);
+					continue;
+				}
+				counter++;
+				let ordr = Math.floor(i / 4);
+				let dstX, dstY, rot;
+				if (plyr == 0) {
+					dstY = 575, dstX = 340 + 120 * ordr, rot = -Math.PI / 12 + Math.PI / 6 * ordr;
+				} else if (plyr == 1) {
+					dstY = 240 + 120 * ordr, dstX = 25, rot = 5 * Math.PI / 12 + Math.PI / 6 * ordr; 
+				} else if (plyr == 2) {
+					dstY = 25, dstX = 460 - 120 * ordr, rot = 11 * Math.PI / 12 + Math.PI / 6 * ordr;
+				} else if (plyr == 3) {
+					dstY = 360 - 120 * ordr, dstX = 775, rot = -7 * Math.PI / 12 + Math.PI / 6 * ordr; 
+				}
+				let index = Math.floor(Math.random() * data.cards.length);
+				let id = data.cards[index];
+				data.cards.splice(index, 1);
+				let cd = instances.CB;
+				if (counter != size)
+					cd = game.add.image(400, 300, 'cb').setOrigin(0.5, 0.5).setScale(0.33);
+				else
+					instances.CB = null;
+				cd.id = id;
+				instances.HN.push(cd);
+				let x = counter;
+				game.time.delayedCall(700 * counter, () => game.sound.play('deal'), [], this);
+				game.tweens.add({
+        			targets: cd,
+        			scaleX: 0.25,
+        			scaleY: 0.25,
+        			x: dstX,
+        			y: dstY,
+        			rotation: rot,
+            		ease: 'Cubic.easeOut',
+            		duration: 700,
+            		delay: 700 * counter,
+            		onComplete: () => {
+            			if (plyr == 0) {
+            				cd.setTexture('c' + (id + 1));
+            				cd.setInteractive();
+            				cd.setName('ownCard' + ordr);
+            			}
+            			if (x == size) {
+            				inOrOutDialog(game, 'in1', 'out1');
+            			}
+            		}
+        		});
+			}
+		}
+
+		function updateHealthBar(bar, current, bet, game, callback, params, delay) {
+			if (bet + current <= 0)
+				imdead();
+			if (current < 0)
+				current = 0;
+
+			if (bet > 0)
+				damnIt.sound.play('ooh');
+
+			bar.HBH.setScale((current * HB_WIDTH / 100) / HB_WIDTH, 1);
+			bar.HBB.setScale((current * HB_WIDTH / 100 + bet * HB_WIDTH / 100) / HB_WIDTH, 1);
+			game && game.time.delayedCall(delay, callback, params, this);
+		}
+
+		function inOrOutDialog(game, n1, n2) {
+			data.currentPage = n1 == 'in1' ? 5 : 6;
+			if (data.bet[0] < 0) {
+				if (winnerCheck() != -1)
+					endTurn(game);
+				else 
+					aiDecision(1, game, n1 == 'in1' ? commonCardsPart1 : commonCardsPart2);
+				return;
+			}
+			instances.DLG = [null, null, null];
+			instances.DLG[0] = game.add.image(400, 380, 'd_io').setOrigin(0.5, 0.5);
+			instances.DLG[1] = game.add.image(440, 380, 'd_ib').setOrigin(0.5, 0.5).setInteractive().setName(n1);
+			if (data.health[0] > data.bet[0])
+				instances.DLG[2] = game.add.image(520, 380, 'd_ob').setOrigin(0.5, 0.5).setInteractive().setName(n2);
+		}
+
+		function commonCardsPart1(game) {
+			instances.CC = [null, null, null];
+
+			let index, id;
+			
+			index = Math.floor(Math.random() * data.cards.length);
+			id = data.cards[index];
+			data.cards.splice(index, 1);
+			instances.CC[0] = game.add.image(275, 250, 'c' + (id + 1)).setOrigin(0.5, 0.5).setScale(0.25).setAlpha(0).setInteractive().setName('cc1');
+			instances.CC[0].id = id;
+
+			index = Math.floor(Math.random() * data.cards.length);
+			id = data.cards[index];
+			data.cards.splice(index, 1);
+			instances.CC[1] = game.add.image(400, 250, 'c' + (id + 1)).setOrigin(0.5, 0.5).setScale(0.25).setAlpha(0).setInteractive().setName('cc2');
+			instances.CC[1].id = id;
+
+			index = Math.floor(Math.random() * data.cards.length);
+			id = data.cards[index];
+			data.cards.splice(index, 1);
+			instances.CC[2] = game.add.image(525, 250, 'cb').setOrigin(0.5, 0.5).setScale(0.25).setAlpha(0);
+			instances.CC[2].id = id;
+
+			game.tweens.add({
+        		targets: instances.CC[0],
+        		alpha: 1,
+            	ease: 'Cubic.easeOut',
+            	duration: 700,
+            	onStart: () => game.sound.play('deal'),
+            	onComplete: () => game.sound.play('deal'),
+			});
+			game.tweens.add({
+        		targets: instances.CC[1],
+        		alpha: 1,
+            	ease: 'Cubic.easeOut',
+            	duration: 700,
+            	delay: 700,
+            	onComplete: () => game.sound.play('deal'),
+			});
+			game.tweens.add({
+        		targets: instances.CC[2],
+        		alpha: 1,
+            	ease: 'Cubic.easeOut',
+            	duration: 700,
+            	delay: 1400,
+            	onComplete: () => {
+					game.time.delayedCall(1000, inOrOutDialog, [game, 'in2', 'out2'], this);
+            	}
+			});
+		}
+
+		function commonCardsPart2(game) {
+			instances.CC[2].setTexture('c' + (instances.CC[2].id + 1));
+			instances.CC[2].setInteractive().setName('cc3');
+			game.time.delayedCall(1000, changeDialog, [game], this);
+            game.sound.play('deal');
+		}
+
+		function changeDialog(game) {
+			data.currentPage = 7;
+			if (data.bet[0] < 0) {
+				aiDecision(1, game, reveal);
+				return;
+			}
+			instances.DLG = [null, null, null];
+			instances.DLG[0] = game.add.image(400, 380, 'd_st').setOrigin(0.5, 0.5);
+			if (data.health[0] > data.bet[0])
+				instances.DLG[1] = game.add.image(460, 380, 'd_yb').setOrigin(0.5, 0.5).setInteractive().setName('yes');
+			instances.DLG[2] = game.add.image(535, 380, 'd_nb').setOrigin(0.5, 0.5).setInteractive().setName('no');
+		}
+
+		function changeCard(game, ind, pid) {
+			for (let i=0; i<instances.DLG.length; i++)
+				if (instances.DLG[i] != null)
+					instances.DLG[i].destroy();
+			instances.DLG = [null];
+
+			let srcX = instances.HN[ind].x; let dstX = instances.HN[ind].x;
+			let srcY = instances.HN[ind].y; let dstY = instances.HN[ind].y;
+			let rot = instances.HN[ind].rotation;
+			if (ind == 0 || ind == 4) {
+				srcY += 50;
+				dstY += 50;
+				dstY += 200;
+			} else if (ind == 1 || ind == 5) {
+				dstX -= 200;
+			} else if (ind == 2 || ind == 6) {
+				dstY -= 200;
+			} else if (ind == 3 || ind == 7) {
+				dstX += 200;
+			}
+
+			let index = Math.floor(Math.random() * data.cards.length);
+			let id = data.cards[index];
+			data.cards.splice(index, 1);
+			let str = pid == 0 ? 'c' + (id+1) : 'cb'
+			let cd = game.add.image(dstX, dstY, str).setOrigin(0.5, 0.5).setScale(0.25).setInteractive().setName(instances.HN[ind].name).setRotation(rot);
+			cd.id = id;
+
+			game.tweens.add({
+				targets: instances.HN[ind],
+        		x: dstX,
+        		y: dstY,
+        		rotation: rot,
+        		ease: 'Cubic.easeOut',
+        		duration: 500,
+            	onComplete: () => {
+            		instances.HN[ind].destroy();
+            		instances.HN[ind] = cd;
+            		game.tweens.add({
+						targets: cd,
+        				x: srcX,
+        				y: srcY,
+        				rotation: rot,
+        				ease: 'Cubic.easeOut',
+        				duration: 500,
+        				onComplete: () => {
+							data.currentPage = 7;
+        					game.time.delayedCall(700, aiDecision, [pid+1, game, reveal], this);
+        				}
+        			});
+        		}
+        	});
+
+        	game.sound.play('deal');
+		}
+
+		function reveal(game) {
+			for (let i=0; i<instances.HN.length; i++) {
+				if (i == 0 || i == 4 || instances.HN[i] == null)
+					continue;
+				instances.HN[i].setTexture('c' + (instances.HN[i].id + 1));
+			}
+			game.sound.play('deal');
+			game.time.delayedCall(2000, evaluate, [game], this);
+		}
+
+		function evaluate(game) {
+			let biggest = [];
+			for (let i=0; i<4; i++) {
+				if (data.bet[i] > 0 && data.alive[i])
+					biggest.push(countCards(i, true));
+			}
+			let result = {winner: [], type: -1, count: 0, draw: false};
+			for (let i=0; i<biggest.length; i++) {
+				if (result.count < biggest[i].count)
+					result = {winner: [biggest[i].p], type: biggest[i].type, count: biggest[i].count, draw:false};
+				else if (result.count == biggest[i].count && result.type < biggest[i].type)
+					result = {winner: [biggest[i].p], type: biggest[i].type, count: biggest[i].count, draw:false};
+				else if (result.count == biggest[i].count && result.type == biggest[i].type) {
+					result = {winner: result.winner, type: biggest[i].type, count: biggest[i].count, draw:true};
+					result.winner.push(biggest[i].p);
+				}
+			}
+
+			lastAction(game, result);
+		}
+
+		function countCards(pid, last) {
+			let types = [0, 0, 0, 0, 0, 0];
+			types[instances.HN[pid].id]++;
+			types[instances.HN[pid + 4].id]++;
+			types[instances.CC[0].id]++;
+			types[instances.CC[1].id]++;
+			if (last)
+				types[instances.CC[2].id]++;
+			let big = {count: 0, type: -1, p:-1};
+			for (let j=0; j<types.length; j++) {
+				if (types[j] > big.count)
+					big = {count: types[j], type: j, p:pid};
+				else if (types[j] == big.count && j > big.type)
+					big = {count: types[j], type: j, p:pid};		
+			}
+			return big;
+		}
+
+		function lastAction(game, result) {
+			data.currentPage = -1;
+			for (let i=0; i<4; i++) {
+				if (!result.winner.includes(i)) {
+					data.health[i] -= Math.abs(data.bet[i]);
+					data.bet[i] = 0;
+					updateHealthBar(instances.HI[i], data.health[i], 0);
+				} else {
+					updateHealthBar(instances.HI[i], data.health[i], 0);
+				}
+			}
+
+			instances.active = [];
+			for (let i=0; i<8; i++) {
+				if (instances.HN[i] == null)
+					continue;
+				if ((result.winner.includes(i) || result.winner.includes(i-4)) && instances.HN[i].id == result.type) {
+					instances.active.push(instances.HN[i]);
+					continue;
+				}
+				game.tweens.add({
+					targets: instances.HN[i],
+		        	alpha: 0,
+		        	ease: 'Cubic.easeOut',
+		       		duration: 500,
+		           	onComplete: () => {
+		            	instances.HN[i].destroy();
+		        	}
+		        });
+			}
+			for (let i=0; i<3; i++) {
+				if (instances.CC[i].id == result.type) {
+					instances.active.push(instances.CC[i]);
+					continue;
+				}
+				game.tweens.add({
+					targets: instances.CC[i],
+		        	alpha: 0,
+		        	ease: 'Cubic.easeOut',
+		       		duration: 500,
+		           	onComplete: () => {
+		           		instances.CC[i].destroy();
+		       		}
+		       	});
+			}
+
+			game.time.delayedCall(2000, endTurn, [game, result], this);
+		}
+
+		function slideMainMenu(game, callback) {
+			data.currentPage = -1;
+			game.tweens.add({
+				targets: [instances.TT, instances.ST, instances.PB, instances.RB, instances.DB],
+            	x: 1200,
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+            	onComplete: () => {
+            		instances.TT.destroy();
+            		instances.ST.destroy();
+            		instances.PB.destroy();
+            		instances.RB.destroy();
+            		instances.DB.destroy();
+            		callback(game);
+            	},
+        	});
+		}
+
+		function slideDeckPage(game, callback) {
+			data.currentPage = -1;
+			game.tweens.add({
+				targets: instances.DP,
+            	x: 1200,
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+            	onComplete: () => {
+            		instances.DP.destroy();
+            		callback(game);
+            	},
+        	});
+		}
+
+		function slideRulesPage(game, callback) {
+			data.currentPage = -1;
+			game.tweens.add({
+				targets: instances.RP,
+            	x: 1200,
+            	ease: 'Cubic.easeOut',
+            	duration: 1000,
+            	onComplete: () => {
+            		instances.RP.destroy();
+            		callback(game);
+            	},
+        	});
+		}
+
+		function aiDecision(pid, game, callback) {
+			let io = false;
+			let ys = false;
+
+			if (pid == 4) {
+				callback(game);
+				return;
+			}
+			else if (data.bet[pid] < 0) {
+				aiDecision(pid+1, game, callback);
+				return;
+			}
+			else if (data.bet[pid] >= data.health[pid]) {
+				aiDecision(pid+1, game, callback);
+				return;
+			}
+
+			// VLAD - first round 90%, second round 70*pairs, change 70% yes if hand has different card
+			if (pid == 1) {
+				if (data.currentPage == 5)
+					io = instances.HN[pid].id == instances.HN[pid + 4].id || Math.random() < 0.9;
+				else if (data.currentPage == 6) {
+					let big = countCards(pid, false);
+					io = Math.random() < big.count * 0.7;
+				} else if (data.currentPage == 7) {
+					let big = countCards(pid, false);
+					ys |= instances.HN[pid].id != big.type;
+					ys |= instances.HN[pid + 4].id != big.type;
+					ys &= (data.health[pid] - data.bet[pid] >= 5);
+					ys &= Math.random() < 0.7;
+				}
+			} 
+
+			// ANGL - first round 40%, second round 30*pairs, change 40% yes if hand has different card
+			else if (pid == 2) {
+				if (data.currentPage == 5)
+					io = instances.HN[pid].id == instances.HN[pid + 4].id || Math.random() < 0.4;
+				else if (data.currentPage == 6) {
+					let big = countCards(pid, false);
+					io = Math.random() < 0.3 * (big.count - 1);
+				} else if (data.currentPage == 7) {
+					let big = countCards(pid, false);
+					ys |= instances.HN[pid].id != big.type;
+					ys |= instances.HN[pid + 4].id != big.type;
+					ys &= (data.health[pid] - data.bet[pid] >= 5);
+					ys &= Math.random() < 0.4;
+				}	
+			} 
+
+			// DNLD - 0.5 in - 0.5 yes
+			else if (pid == 3) {
+				if (data.currentPage == 5)
+					io = data.donald = Math.random() < 0.5;
+				else if (data.currentPage == 6)
+					io = data.donald;
+				else if (data.currentPage == 7) {
+					ys = true;
+					ys &= (data.health[pid] - data.bet[pid] >= 5);
+					ys &= Math.random() < 0.5;
+				}
+			}
+
+			if (data.bet[pid] > data.health[pid])
+				data.bet[pid] = data.health[pid];
+
+			if (io)  {
+				data.bet[pid] += 5;
+				game.time.delayedCall(300, updateHealthBar, [
+					instances.HI[pid], 
+					data.health[pid] - data.bet[pid], 
+					data.bet[pid],
+					game,
+					aiDecision,
+					[pid+1, game, callback],
+					700
+				], this);
+			} else if (!io && (data.currentPage == 5 || data.currentPage == 6)) {
+				data.bet[pid] = -data.bet[pid];
+				game.time.delayedCall(300, imout, [pid, game, callback], this);
+			} else if (ys) {
+				data.bet[pid] += 5;
+				let big = countCards(pid, false);
+				let ind = pid;
+				if (big.type == instances.HN[pid].id)
+					ind += 4;
+				game.time.delayedCall(300, updateHealthBar, [
+					instances.HI[pid], 
+					data.health[pid] - data.bet[pid], 
+					data.bet[pid],
+					game,
+					changeCard,
+					[game, ind, pid],
+					400
+				], this);
+			} else {
+				game.time.delayedCall(300, aiDecision, [ pid+1, game, reveal ], this);
+			}
+		}
+
+		function imout(pid, game, callback) {
+			let dstX = instances.NM[pid].x;
+			let dstY = instances.NM[pid].y;
+			let lstX = dstX, lstY = dstY, rot = 0;
+			if (pid == 0) {
+				lstY += 100;
+				dstY += 200;
+				rot = 0;
+			} else if (pid == 1) {
+				lstX -= 100;
+				dstX -= 200;
+				rot = Math.PI / 2;
+			} else if (pid == 2) {
+				lstY -= 100;
+				dstY -= 200;
+				rot = Math.PI;
+			} else if (pid == 3) {
+				lstX += 100;
+				dstX += 200;
+				rot = -Math.PI / 2;
+			}
+
+			let cd = game.add.image(dstX, dstY, 'ck').setOrigin(0.5, 0.5).setRotation(rot);
+			instances.OT.push(cd);
+
+			game.sound.play('chicken');
+
+			game.tweens.add({
+				targets: [instances.HN[pid], instances.HN[pid + 4]],
+        		x: dstX,
+        		y: dstY,
+        		scaleX: 0.1,
+        		scaleY: 0.1,
+        		rotation: rot,
+        		ease: 'Cubic.easeOut',
+        		duration: 500,
+        	});
+
+        	game.tweens.add({
+        		targets: cd,
+        		x: lstX,
+        		y: lstY,
+        		ease: 'Cubic.easeOut',
+        		duration: 500,
+        	});
+
+        	if (winnerCheck() == -1) {
+        		game.time.delayedCall(1000, aiDecision, [pid+1, game, callback], this);
+        	} else {
+        		game.time.delayedCall(1500, endTurn, [game], this);
+        	}
+		}
+
+		function imdead() {
+			let counter = 0;
+			for (let i=0; i<4; i++) {
+				if (data.health[i] + data.bet[i] <= 0 && data.alive[i]) {
+					data.alive[i] = false;
+					let dstX = instances.NM[i].x;
+					let dstY = instances.NM[i].y;
+					let lstX = dstX, lstY = dstY, rot = 0;
+					if (i == 0) {
+						lstY += 100;
+						dstY += 200;
+						rot = 0;
+					} else if (i == 1) {
+						lstX -= 100;
+						dstX -= 200;
+						rot = Math.PI / 2;
+					} else if (i == 2) {
+						lstY -= 100;
+						dstY -= 200;
+						rot = Math.PI;
+					} else if (i == 3) {
+						lstX += 100;
+						dstX += 200;
+						rot = -Math.PI / 2;
+					}
+
+					let dd = damnIt.add.image(dstX, dstY, 'dd').setOrigin(0.5, 0.5).setRotation(rot);
+					instances.DD.push(dd);
+
+        			damnIt.tweens.add({
+        				targets: dd,
+        				x: lstX,
+        				y: lstY,
+        				ease: 'Cubic.easeOut',
+        				duration: 500,
+        			});
+
+        			if (i == 0)
+        				damnIt.time.delayedCall(1500, terminateGame, [damnIt, false], this);
+        			else
+        				counter++;
+				} else if (!data.alive[i])
+					counter++;
+			}
+			if (counter == 3)
+				damnIt.time.delayedCall(1500, terminateGame, [damnIt, true], this);
+		}
+
+		function winnerCheck() {
+			let winner = (data.bet[0] > 0) + (data.bet[1] > 0) + (data.bet[2] > 0) + (data.bet[3] > 0);
+			if (winner == 1) {
+				for (let i=0; i<4; i++)
+					if (data.bet[i] > 0)
+						return i;
+			}
+			return -1;
+		}
+
+		// TODO: kalbi güzel çiz...
+		function endTurn(game, behaviour) {
+			game.tweens.add({
+				targets: instances.OT,
+		        alpha: 0,
+		        ease: 'Cubic.easeOut',
+		       	duration: 500,
+		        onComplete: () => {
+		          	for (let i=0; i<instances.OT.length; i++)
+		          		instances.OT[i].destroy;
+		      		instances.OT = [];
+		       	}
+		    });
+			if (behaviour === undefined) {
+				data.currentPage = -1;
+				let winner = winnerCheck();
+				for (let i=0; i<4; i++) {
+					if (winner != i) {
+						data.health[i] -= Math.abs(data.bet[i]);
+						updateHealthBar(instances.HI[i], data.health[i], 0);
+					} else {
+						updateHealthBar(instances.HI[i], data.health[i], 0);
+					}
+				}
+				game.tweens.add({
+					targets: instances.HN,
+		        	alpha: 0,
+		        	ease: 'Cubic.easeOut',
+		       		duration: 500,
+		       		delay: 500,
+		           	onComplete: () => {
+		           		for (let i=0; i<instances.HN.length; i++)
+		           			if (instances.HN[i] != null)
+		           				instances.HN[i].destroy;
+		           		instances.HN = [];
+		        	}
+		        });
+		        game.tweens.add({
+					targets: instances.CC,
+		        	alpha: 0,
+		        	ease: 'Cubic.easeOut',
+		       		duration: 500,
+		       		delay: 500,
+		           	onComplete: () => {
+		           		for (let i=0; i<instances.CC.length; i++)
+		           			instances.CC[i].destroy;
+		           		instances.CC = [];
+		           		startTurn(game);
+		        	}
+		        });
+			} else if (behaviour.winner.length > 1){
+				game.tweens.add({
+					targets: instances.active,
+		        	alpha: 0,
+		        	ease: 'Cubic.easeOut',
+		       		duration: 500,
+		       		delay: 500,
+		           	onComplete: () => {
+		           		for (let i=0; i<instances.active.length; i++)
+		           			instances.active[i].destroy;
+		           		instances.active = [];
+		           		startTurn(game);
+		        	}
+		        });
+			} else {
+				let total = 0;
+				if (behaviour.type == 0) {
+					total = 700 * instances.active.length;
+					for (let i=0; i<instances.active.length; i++)  {
+						game.tweens.add({
+							targets: instances.active[i],
+		        			alpha: 0,
+		        			scaleX: 0.5,
+		        			scaleY: 0.5,
+		        			ease: 'Cubic.easeOut',
+		       				duration: 700,
+		       				delay: 700 * i,
+		        		});
+					}
+				} 
+
+				else if (behaviour.type == 1) {
+					total = 2500 * instances.active.length;
+					for (let i=0; i<instances.active.length; i++) {
+						let player = 0;
+						do {
+							player = Math.floor(Math.random() * 4);
+		       			} while (player == behaviour.winner[0] || data.health[player] <= 0);
+						game.tweens.add({
+							targets: instances.active[i],
+		        			alpha: 0,
+		        			scaleX: 0.5,
+		        			scaleY: 0.5,
+		        			ease: 'Cubic.easeOut',
+		       				duration: 500,
+		       				delay: 2750 * i,
+		       				onComplete: () => {
+		       					let rv = game.add.image(400, 300, 'w_rv').setOrigin(0.5, 0.5).setScale(0.5).setDepth(10);
+		       					let timeline = game.tweens.createTimeline();
+				       			timeline.add({
+									targets: rv,
+				        			rotation: 2*Math.PI,
+				        			repeat: 2,
+				       				duration: 500,
+				       			});
+				       			timeline.add({
+				       				targets: rv,
+				       				rotation: (player + 1) * Math.PI / 2,
+				       				duration: 250,
+				       			});
+				       			timeline.add({
+				       				targets: rv,
+				       				x: '-=' + (player == 1 ? -50 : player == 3 ? 50 : 0),
+				       				y: '-=' + (player == 0 ? 50 : player == 2 ? -50 : 0),
+				       				duration: 125,
+				       				yoyo: true,
+				       				onStart:() => game.sound.play('revolver'),
+				       				onComplete: () => {
+				       					data.health[player] -= 5;
+				       					updateHealthBar(instances.HI[player], data.health[player], 0);
+				       					rv.destroy();
+				       				}
+				       			})
+				       			timeline.play();
+		       				}
+		        		});
+					}
+				} 
+
+				else if (behaviour.type == 2) {
+					total = 1000 * instances.active.length;
+					for (let i=0; i<instances.active.length; i++) {
+						let player = 0;
+						do {
+							player = Math.floor(Math.random() * 4);
+		       			} while (player == behaviour.winner[0] || data.health[player] <= 0);
+						game.tweens.add({
+							targets: instances.active[i],
+		        			alpha: 0,
+		        			scaleX: 0.5,
+		        			scaleY: 0.5,
+		        			ease: 'Cubic.easeOut',
+		       				duration: 500,
+		       				delay: 1000 * i,
+		       				onComplete: () => {
+		       					let hr = game.add.image(instances.active[i].x, instances.active[i].y, 'h_hr').setOrigin(0.5, 0.5).setDepth(10);
+		       					game.tweens.add({
+									targets: hr,
+									x: instances.NM[player].x,
+									y: instances.NM[player].y,
+		        					ease: 'Cubic.easeOut',
+		       						duration: 500,
+		       						onComplete: () => {
+		       							data.health[player] += 5;
+		       							if (data.health[player] > 100)
+		       								data.health[player] = 100;
+				       					updateHealthBar(instances.HI[player], data.health[player], 0);
+				       					game.sound.play('healthUp');
+				       					hr.destroy();
+		       						}
+		        				});
+		       				}
+		        		});
+					}
+				} 
+
+				else if (behaviour.type == 3) {
+					total = 1000 * instances.active.length;
+					for (let i=0; i<instances.active.length; i++) {
+						let player = behaviour.winner[0];
+						game.tweens.add({
+							targets: instances.active[i],
+		        			alpha: 0,
+		        			scaleX: 0.5,
+		        			scaleY: 0.5,
+		        			ease: 'Cubic.easeOut',
+		       				duration: 500,
+		       				delay: 1000 * i,
+		       				onComplete: () => {
+		       					let hr = game.add.image(instances.active[i].x, instances.active[i].y, 'h_hr').setOrigin(0.5, 0.5).setDepth(10);
+		       					game.tweens.add({
+									targets: hr,
+									x: instances.NM[player].x,
+									y: instances.NM[player].y,
+		        					ease: 'Cubic.easeOut',
+		       						duration: 500,
+		       						onComplete: () => {
+		       							data.health[player] += 5;
+		       							if (data.health[player] > 100)
+		       								data.health[player] = 100;
+				       					updateHealthBar(instances.HI[player], data.health[player], 0);
+				       					game.sound.play('healthUp');
+				       					hr.destroy();
+		       						}
+		        				});
+		       				}
+		        		});
+					}
+				} 
+
+				else if (behaviour.type == 4) {
+					total = 1500 * instances.active.length;
+					for (let i=0; i<instances.active.length; i++) {
+						let player = behaviour.winner[0];
+						game.tweens.add({
+							targets: instances.active[i],
+		        			alpha: 0,
+		        			scaleX: 0.5,
+		        			scaleY: 0.5,
+		        			ease: 'Cubic.easeOut',
+		       				duration: 500,
+		       				delay: 2000 * i,
+		       				onComplete: () => {
+		       					let mp = game.add.image(400, 300, 'w_mp').setOrigin(0.5, 0.5).setScale(0.5).setRotation((player + 1) * Math.PI / 2).setDepth(10);
+		       					game.tweens.add({
+									targets: mp,
+									x: '-=' + (player == 1 ? -50 : player == 3 ? 50 : 0),
+				       				y: '-=' + (player == 0 ? 50 : player == 2 ? -50 : 0),
+		        					ease: 'Cubic.easeOut',
+		       						duration: 100,
+		       						yoyo: true,
+		       						repeat: 5,
+		       						onStart: () => {
+		       							game.sound.play('mp5');
+		       						},
+		       						onComplete: () => {
+		       							data.health[player] -= 5;
+				       					updateHealthBar(instances.HI[player], data.health[player], 0);
+				       					mp.destroy();
+		       						}
+		        				});
+		       				}
+		        		});
+					}
+				} 
+
+				else if (behaviour.type == 5) {
+					total = 1500 * instances.active.length;
+					for (let i=0; i<instances.active.length; i++) {
+						let player = behaviour.winner[0];
+						game.tweens.add({
+							targets: instances.active[i],
+		        			alpha: 0,
+		        			scaleX: 0.5,
+		        			scaleY: 0.5,
+		        			ease: 'Cubic.easeOut',
+		       				duration: 500,
+		       				delay: 2000 * i,
+		       				onComplete: () => {
+		       					let fl = game.add.image(400, 300, 'w_fl').setOrigin(0.5, 0.5).setScale(0.7).setRotation((player + 2) * Math.PI / 2).setDepth(10);
+		       					game.tweens.add({
+									targets: fl,
+									rotation: (player + 4) * Math.PI / 2,
+		        					ease: 'Cubic.easeOut',
+		       						duration: 500,
+		       						yoyo: true,
+		       						onStart: () => game.sound.play('flail'),
+		       						onComplete: () => {
+		       							for (let i=0; i<4; i++) {
+		       								if (i == player)
+		       									continue;
+		       								if (data.health[i] > 0) {
+		       									data.health[i] -= 5;
+				       							updateHealthBar(instances.HI[i], data.health[i], 0);
+		       								}
+		       							}
+				       					fl.destroy();
+		       						}
+		        				});
+		       				},
+		        		});
+					}
+				}
+
+        		game.time.delayedCall(total + 1500, startTurn, [game], this);
+			}
+		}
+
+		function terminateGame(game, win) {
+			if (data.over)
+				return;
+			data.over = true;
+			game.tweens.killAll();
+			game.time.removeAllEvents();
+			if (win) {
+				game.add.image(400, 300, 'vp').setOrigin(0.5, 0.5).setName('resetGame').setInteractive();
+			} else {
+				game.add.image(400, 300, 'lp').setOrigin(0.5, 0.5).setName('resetGame').setInteractive();
+			}
+		}
+    </script>
+
+</body>
+</html>
